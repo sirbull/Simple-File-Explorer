@@ -1,5 +1,5 @@
 # A lightweight, single-file file explorer for web directories.  
-# It reads the Apache AutoIndex page (directory listing) and displays files/folders in a clean UI – without any server code.
+## It reads the Apache AutoIndex page (directory listing) and displays files/folders in a clean UI – without any server code.
 
 # Features
 - Folder navigation (breadcrumbs + “Up one level”)
