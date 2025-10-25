@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="no">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Filutforsker</title>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#141a22; --card2:#0f141b; --text:#e9eef5; --muted:#9fb0c3; --accent:#6fb3ff; --ok:#40c463; --warn:#ffcc66;
+    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{margin:0; font:16px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; color:var(--text); background:linear-gradient(180deg,#0b0f14,#0e141c 40%,#0b0f14)}
+  .wrap{max-width:1100px; margin:40px auto; padding:0 16px}
+  header{display:flex; gap:12px; align-items:center; justify-content:space-between; margin-bottom:16px}
+  h1{font-size:20px; margin:0}
+  .crumbs{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+  .crumbs a{color:var(--accent); text-decoration:none}
+  .crumbs span.sep{opacity:.5}
+  .tools{display:flex; gap:10px; align-items:center}
+  input[type="search"]{background:var(--card2); border:1px solid #1f2a36; color:var(--text); padding:10px 12px; border-radius:999px; min-width:260px; outline:none}
+  .panel{background:var(--card); border:1px solid #1f2a36; border-radius:var(--radius); box-shadow:var(--shadow)}
+  .list{display:grid; grid-template-columns: 1fr; border-radius:var(--radius); overflow:hidden}
+  .row{display:grid; grid-template-columns: 48px 1fr 120px 160px 36px; gap:12px; align-items:center; padding:12px 14px; border-bottom:1px solid #1b2632}
+  .row.head{position:sticky; top:0; background:#101722; border-bottom:1px solid #243244; z-index:2; font-weight:600}
+  .row:last-child{border-bottom:none}
+  .name a{color:var(--text); text-decoration:none}
+  .name a:hover{color:var(--accent)}
+  .type{color:var(--muted)}
+  .size, .mtime{font-variant-numeric:tabular-nums; color:var(--muted)}
+  .icon{width:28px; height:28px; display:grid; place-items:center; background:#0e141c; border:1px solid #1f2a36; border-radius:8px}
+  .btn{background:#0f141b; border:1px solid #213046; color:var(--text); padding:8px 10px; border-radius:10px; cursor:pointer}
+  .btn:hover{border-color:#2a3b54}
+  .muted{color:var(--muted)}
+  .footer{display:flex; justify-content:space-between; padding:10px 14px; color:var(--muted)}
+  .preview{margin-top:16px; display:none}
+  .preview.active{display:block}
+  .pv-wrap{display:grid; grid-template-columns:1fr; gap:12px; padding:16px}
+  .pv-box{background:var(--card); border:1px solid #1f2a36; border-radius:var(--radius); padding:14px; overflow:auto; max-height:60vh}
+  .pv-box img, .pv-box video, .pv-box audio{max-width:100%}
+  code.pre{white-space:pre; font-family:ui-monospace,SFMono-Regular,Consolas,Menlo,monospace; font-size:14px}
+  .tag{font-size:12px; padding:2px 8px; border-radius:999px; background:#0e1621; border:1px solid #223149; color:#b7c7db}
+  @media (max-width:800px){
+    .row{grid-template-columns: 36px 1fr 100px 0 36px}
+    .mtime{display:none}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Filutforsker</h1>
+      <div class="crumbs" id="breadcrumbs"></div>
+    </div>
+    <div class="tools">
+      <input id="search" type="search" placeholder="Søk i denne mappen…" />
+      <button class="btn" id="upBtn" title="Opp ett nivå">Opp</button>
+    </div>
+  </header>
+
+  <div class="panel list" id="list">
+    <div class="row head">
+      <div class="muted">#</div>
+      <div>Navn</div>
+      <div class="muted">Størrelse</div>
+      <div class="muted">Endret</div>
+      <div class="muted" title="Kopier lenke">URL</div>
+    </div>
+    <!-- rows injected here -->
+  </div>
+  <div class="footer muted" id="summary"></div>
+
+  <section class="preview" id="preview">
+    <div class="pv-wrap">
+      <div class="pv-box" id="pvBox"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  // --- Config ---
+// Finn mappestien der denne filen ligger
+const ROOT = location.pathname.replace(/[^/]+$/, '');   // f.eks. "/bank/"
+// Lag full base-URL (inkludert https://)
+const BASE = location.origin + ROOT;                    // f.eks. "https://oppgavebanken.bullfolio.no/bank/"
+  const isDirListingSupported = true; // requires Apache/Nginx directory index enabled
+
+  // --- State ---
+  let currentPath = decodeURIComponent((location.hash || "").replace(/^#/, "")); // e.g. "sub/folder/"
+  if (currentPath.startsWith("/")) currentPath = currentPath.slice(1);
+  if (currentPath && !currentPath.endsWith("/")) currentPath += "/";
+
+  const listEl = document.getElementById("list");
+  const bcEl = document.getElementById("breadcrumbs");
+  const sumEl = document.getElementById("summary");
+  const pv = document.getElementById("preview");
+  const pvBox = document.getElementById("pvBox");
+  const searchEl = document.getElementById("search");
+  const upBtn = document.getElementById("upBtn");
+
+  // --- Helpers ---
+  function humanSize(bytes){
+    if (bytes == null || isNaN(bytes)) return "—";
+    const units = ["B","KB","MB","GB","TB"];
+    let i = 0; let v = Math.max(bytes,0);
+    while (v >= 1024 && i < units.length-1){ v/=1024; i++; }
+    return (v>=10 ? Math.round(v) : v.toFixed(1)) + " " + units[i];
+  }
+  function iconFor(name, isDir){
+    if (isDir) return "📁";
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    if (["png","jpg","jpeg","webp","gif","svg"].includes(ext)) return "🖼️";
+    if (["mp4","webm","mov","mkv"].includes(ext)) return "🎬";
+    if (["mp3","wav","ogg","m4a","flac"].includes(ext)) return "🎵";
+    if (["pdf"].includes(ext)) return "📄";
+    if (["zip","rar","7z","tar","gz"].includes(ext)) return "🗜️";
+    if (["txt","md","json","js","css","html","csv","log"].includes(ext)) return "📃";
+    return "📦";
+  }
+  function crumbUI(path){
+    bcEl.innerHTML = "";
+    const parts = path ? path.split("/").filter(Boolean) : [];
+    const frag = document.createDocumentFragment();
+    const rootLink = document.createElement("a");
+    rootLink.href = "#";
+    rootLink.textContent = location.host;
+    rootLink.addEventListener("click", (e)=>{ e.preventDefault(); navigate(""); });
+    frag.appendChild(rootLink);
+    let acc = "";
+    for (let i=0;i<parts.length;i++){
+      const sep = document.createElement("span"); sep.className="sep"; sep.textContent=" / "; frag.appendChild(sep);
+      acc += parts[i] + "/";
+      const a = document.createElement("a");
+      a.href = "#" + acc;
+      a.textContent = parts[i];
+      a.addEventListener("click",(e)=>{ e.preventDefault(); navigate(acc); });
+      frag.appendChild(a);
+    }
+    bcEl.appendChild(frag);
+  }
+  function navigate(path){
+    currentPath = path || "";
+    if (currentPath && !currentPath.endsWith("/")) currentPath += "/";
+    location.hash = currentPath;
+    load();
+  }
+  function parentPath(path){
+    if (!path) return "";
+    const parts = path.split("/").filter(Boolean);
+    parts.pop();
+    return parts.length ? parts.join("/") + "/" : "";
+  }
+  function isParentEntry(name){ return name === "../" || name === ".."; }
+
+  // Parse Apache autoindex HTML to extract links, sizes and dates
+  function parseAutoIndex(html, baseURL){
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const anchors = Array.from(doc.querySelectorAll("a"));
+    const rows = [];
+    anchors.forEach(a => {
+      const href = a.getAttribute("href") || "";
+      const text = (a.textContent || "").trim();
+      // Skip anchors without href or that link to current page anchors/icons
+      if (!href || href.startsWith("?") || href.startsWith("#")) return;
+      // Skip icon image links from Apache autoindex (often preceding the name link)
+      const parentTd = a.closest("td");
+      if (parentTd && parentTd.querySelector("img")) {
+        // icon cell – skip
+        return;
+      }
+      // Build absolute URL
+      const url = new URL(href, baseURL).href;
+      // Try to find sibling cells for size/date (Apache layouts vary)
+      // Heuristic: find the row (<tr>) and collect other cells' text
+      const tr = a.closest("tr");
+      let size = null, mtime = null;
+      if (tr) {
+        const tds = Array.from(tr.querySelectorAll("td")).map(td => td.textContent.trim());
+        // Commonly: [icon, name, last modified, size, desc]
+        if (tds.length >= 4){
+          // Find plausible size (contains B, KB, MB or digits)
+          const guessSize = tds.find(s => /\d/.test(s) && /(B|KB|MB|GB|TB)$/i.test(s));
+          if (guessSize) size = guessSize;
+          // Find date (contains year or pattern YYYY-)
+          const guessDate = tds.find(s => /\d{4}/.test(s) && /[:\-]/.test(s));
+          if (guessDate) mtime = guessDate;
+        }
+      }
+      const isDir = href.endsWith("/");
+      const name = text || href;
+      if (isParentEntry(name)) return; // we'll render our own "Opp"
+      rows.push({ name, url, isDir, size, mtime });
+    });
+    // De-duplicate (autoindex sometimes repeats)
+    const seen = new Set();
+    return rows.filter(r => {
+      const key = r.url + "|" + r.name;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  async function fetchListing(path){
+    const target = BASE + path; // Bruk absolutt URL nå
+    const res = await fetch(target, { method:"GET", headers: { "Accept":"text/html,*/*" } });
+    if (!res.ok) throw new Error("Kan ikke lese mappe: " + res.status);
+    const html = await res.text();
+    return parseAutoIndex(html, target);
+  }
+
+  function clearRows(){
+    Array.from(listEl.querySelectorAll(".row.item")).forEach(n => n.remove());
+  }
+
+  function rowEl(idx, entry){
+    const r = document.createElement("div");
+    r.className = "row item";
+    const icon = document.createElement("div");
+    icon.className = "icon";
+    icon.textContent = iconFor(entry.name, entry.isDir);
+    const name = document.createElement("div");
+    name.className = "name";
+    const a = document.createElement("a");
+    a.href = entry.isDir ? "#" + (currentPath + entry.name) : entry.url;
+    a.textContent = entry.name.replace(/\/$/,"");
+    if (entry.isDir){
+      a.addEventListener("click",(e)=>{ e.preventDefault(); navigate(currentPath + entry.name); });
+    } else {
+      a.target = "_blank";
+      a.rel = "noopener";
+      a.addEventListener("click", ()=> { preview(entry); });
+    }
+    name.appendChild(a);
+
+    const size = document.createElement("div");
+    size.className = "size";
+    size.textContent = entry.size || "—";
+
+    const mtime = document.createElement("div");
+    mtime.className = "mtime";
+    mtime.textContent = entry.mtime || "—";
+
+    const copy = document.createElement("div");
+    const btn = document.createElement("button");
+    btn.className = "btn";
+    btn.title = "Kopier direkte-URL";
+    btn.textContent = "Copy";
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(entry.url);
+        btn.textContent = "Kopiert!";
+        setTimeout(()=> btn.textContent="Copy", 1200);
+      } catch {
+        prompt("Kopier URL:", entry.url);
+      }
+    });
+    copy.appendChild(btn);
+
+    r.append(icon, name, size, mtime, copy);
+    r.dataset.name = entry.name.toLowerCase();
+    r.dataset.isdir = entry.isDir ? "1" : "0";
+    return r;
+  }
+
+  function applyFilter(){
+    const q = (searchEl.value || "").trim().toLowerCase();
+    const rows = Array.from(listEl.querySelectorAll(".row.item"));
+    let visible = 0;
+    rows.forEach(r => {
+      const name = r.dataset.name || "";
+      const ok = !q || name.includes(q);
+      r.style.display = ok ? "grid" : "none";
+      if (ok) visible++;
+    });
+    sumEl.textContent = visible + " element" + (visible===1?"":"er") + " vist";
+  }
+
+  async function load(){
+    pv.classList.remove("active");
+    pvBox.innerHTML = "";
+    crumbUI(currentPath);
+    upBtn.disabled = !currentPath;
+
+    clearRows();
+    // Add a synthetic "Opp" row at top (except on root)
+    if (currentPath){
+      const r = document.createElement("div");
+      r.className = "row item";
+      r.innerHTML = `
+        <div class="icon">⬆️</div>
+        <div class="name"><a href="#" id="goUp">Opp til ${parentPath(currentPath) || 'rot'}</a></div>
+        <div class="size">—</div>
+        <div class="mtime">—</div>
+        <div></div>
+      `;
+      r.querySelector("#goUp").addEventListener("click", (e)=>{ e.preventDefault(); navigate(parentPath(currentPath)); });
+      listEl.appendChild(r);
+    }
+
+    let entries = [];
+    try{
+      entries = await fetchListing(currentPath);
+    }catch(err){
+      console.error(err);
+      alert("Klarte ikke å lese mappen. Sjekk at 'Options +Indexes' er aktivert og at ingen index-fil overstyrer listevisning.\n\nFeil: " + err.message);
+      sumEl.textContent = "Ingen data.";
+      return;
+    }
+
+    // Sort: folders first, then files, alphabetically
+    entries.sort((a,b) => {
+      if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
+      return a.name.localeCompare(b.name, undefined, { sensitivity:"base" });
+    });
+
+    let i = 0;
+    for (const e of entries){
+      const row = rowEl(++i, e);
+      listEl.appendChild(row);
+    }
+    sumEl.textContent = `${entries.length} element${entries.length===1?"":"er"} i "${currentPath || "/"}"`;
+    applyFilter();
+  }
+
+  async function preview(entry){
+    const name = entry.name.toLowerCase();
+    const url = entry.url;
+    const ext = (name.split(".").pop() || "").toLowerCase();
+    pv.classList.add("active");
+    pvBox.innerHTML = `<div class="muted">Forhåndsviser: <span class="tag">${entry.name.replace(/\/$/,"")}</span></div><div style="height:8px"></div>`;
+    if (["png","jpg","jpeg","webp","gif","svg"].includes(ext)){
+      pvBox.innerHTML += `<img src="${url}" alt="">`;
+    } else if (["mp4","webm","mov"].includes(ext)){
+      pvBox.innerHTML += `<video src="${url}" controls></video>`;
+    } else if (["mp3","wav","ogg","m4a","flac"].includes(ext)){
+      pvBox.innerHTML += `<audio src="${url}" controls></audio>`;
+    } else if (["txt","md","json","js","css","html","csv","log"].includes(ext)){
+      try {
+        const res = await fetch(url);
+        const text = await res.text();
+        const snippet = text.length > 20000 ? text.slice(0,20000) + "\n\n…(avkortet)…" : text;
+        pvBox.innerHTML += `<code class="pre"></code>`;
+        pvBox.querySelector("code").textContent = snippet;
+      } catch {
+        pvBox.innerHTML += `<div class="muted">Kunne ikke laste tekstinnhold.</div>`;
+      }
+    } else {
+      pvBox.innerHTML += `<div class="muted">Ingen forhåndsvisning for denne filtypen – bruk "Copy" og åpne i ny fane.</div>`;
+    }
+    pv.scrollIntoView({behavior:"smooth",block:"start"});
+  }
+
+  // Events
+  window.addEventListener("hashchange", () => {
+    let p = decodeURIComponent((location.hash || "").replace(/^#/, ""));
+    if (p && !p.endsWith("/")) p += "/";
+    if (p !== currentPath){
+      currentPath = p;
+      load();
+    }
+  });
+  searchEl.addEventListener("input", applyFilter);
+  upBtn.addEventListener("click", () => navigate(parentPath(currentPath)));
+
+  // Init
+  load();
+})();
+</script>
+</body>
+</html>
