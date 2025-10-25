@@ -1,44 +1,39 @@
-# Simple-File-Explorer
-A simple file explorer for use in the browser. Simply add the HTML and inside your folder and run explorer.html. Search, see content and more!
+# A lightweight, single-file file explorer for web directories.  
+# It reads the Apache AutoIndex page (directory listing) and displays files/folders in a clean UI – without any server code.
 
----
+# Features
+- Folder navigation (breadcrumbs + “Up one level”)
+- Search/filter in the current directory
+- Preview of images, video, audio, and text files
+- Copy direct URL with one click
+- Works in a single HTML document (no build, no dependencies)
 
-# En lettvekts, én-fil filutforsker for webmapper. 
-# Den leser Apache AutoIndex-siden (mappelisting) og viser filer/mapper i et pent UI – uten serverkode.
+# Requirements
+The server must provide directory listing (Apache: Options +Indexes).  
+The folder you want to list must not contain an index.html (otherwise AutoIndex won’t appear).  
+File permissions: folders 755, files 644 (typical web hosting default).  
+Tested against standard Apache AutoIndex (minor variations supported; see “Troubleshooting” if the theme is unusual).
 
-# Funksjoner
-- Navigasjon i mapper (brødsmuler + «Opp ett nivå»)
-- Søk/filter i aktuell mappe
-- Forhåndsvisning av bilder, video, lyd og tekstfiler
-- Kopiér direkte-URL med ett klikk
-- Fungerer i ett enkelt HTML-dokument (ingen bygg, ingen avhengigheter)
-
-# Forutsetninger
-Serveren må levere mappelisting (Apache: Options +Indexes).
-I mappen du vil liste må det ikke ligge en index.html (da vises ikke autoindex).
-Filrettigheter: mapper 755, filer 644 (typisk webhotell-standard).
-Testet mot standard Apache AutoIndex (små variasjoner støttes; se «Feilsøking» om temaet er uvanlig).
-
-# Installasjon
-Legg explorer.html i mappen du vil bla i, f.eks.:
+# Installation
+Place explorer.html in the folder you want to browse, e.g.:
     foldername/explorer.html
 
-Sørg for at mappen ikke har en index.html.
+Make sure the folder does not contain an index.html.
 
-## Åpne i nettleser:
+## Open in browser:
 https://url.com/explorer.html
 
-## Alternativ plassering
-Hvis du må beholde en index.html i rotmappen:
+## Alternative location
+If you must keep an index.html in the root directory:
 
-Opprett en undermappe, f.eks. /_explorer/
+Create a subfolder, e.g. /_explorer/
 
-## Legg explorer.html der:
-    /folder_name/_explorer/explorer.html
-### Åpne:
+## Place explorer.html there:
+    /bank/_explorer/explorer.html
+### Open:
     https://url.com/_explorer/explorer.html
 
-# (Valgfritt) CORS, nyttig om andre verktøy skal hente filer
+# (Optional) CORS – useful if other tools need to fetch files
     <IfModule mod_headers.c>
     Header set Access-Control-Allow-Origin "*"
     Header set Access-Control-Allow-Methods "GET, HEAD, OPTIONS"
@@ -46,12 +41,12 @@ Opprett en undermappe, f.eks. /_explorer/
     Header always set X-Content-Type-Options "nosniff"
     </IfModule>
 
-# Sikkerhet: ikke kjør skript i denne mappen
+# Security: do not execute scripts in this folder
     <FilesMatch "\.(php|phtml|phps|cgi|pl|py|sh|rb)$">
     Require all denied
     </FilesMatch>
 
-    # (Valgfritt) enkel caching av statiske filer
+    # (Optional) simple caching for static files
     <IfModule mod_expires.c>
     ExpiresActive On
     ExpiresByType text/css "access plus 7 days"
@@ -63,77 +58,78 @@ Opprett en undermappe, f.eks. /_explorer/
     ExpiresDefault "access plus 1 day"
     </IfModule>
 
-Aktiver HTTPS-redirect først når sertifikatet for subdomenet er utstedt, ellers kan du «låse deg ute».
+Enable HTTPS redirect only when the certificate for the subdomain has been issued, otherwise you might “lock yourself out.”
 
-# Bruk:
-- Klikk på mappe for å åpne den.
-- Klikk på fil for å åpne i ny fane; støttede formater får også innebygd forhåndsvisning:
-- Bilder: png, jpg, jpeg, webp, gif, svg
+# Usage:
+- Click on a folder to open it.
+- Click on a file to open it in a new tab; supported formats also have built-in preview:
+- Images: png, jpg, jpeg, webp, gif, svg
 - Video: mp4, webm, mov
-- Lyd: mp3, wav, ogg, m4a, flac
-- Tekst: txt, md, json, js, css, html, csv, log
-- Søkefeltet filtrerer radene i den aktive mappen.
-- Copy-knapp kopierer direkte-URL til filen.
+- Audio: mp3, wav, ogg, m4a, flac
+- Text: txt, md, json, js, css, html, csv, log
+- The search field filters the rows in the active folder.
+- The copy button copies the direct URL of the file.
 
-# Dyp lenking
-URL-hash brukes for undermapper. Du kan lenke direkte:
-    https://url.com/explorer.html#undermappe/enda/
+# Deep linking
+The URL hash is used for subfolders. You can link directly:
+    https://url.com/explorer.html#subfolder/deeper/
 
-# Tilpasning
-- Ikoner per filtype: juster funksjonen iconFor() i koden.
-- Filtrering/sortering: utvid applyFilter() eller sorteringslogikken før rendering.
-- Forhåndsvisning: utvid preview() hvis du vil støtte flere formater.
+# Customization
+- Icons per file type: adjust the function iconFor() in the code.
+- Filtering/sorting: extend applyFilter() or the sorting logic before rendering.
+- Preview: extend preview() if you want to support more formats.
 
-# Feilsøking
-Symptom: Tom liste / varsel “Klarte ikke å lese mappen …”
-Sjekk:
-1: Gå til mappen direkte i nettleseren:
+# Troubleshooting
+**Symptom:** Empty list / message “Failed to read directory …”  
+Check:
+1: Go to the folder directly in your browser:
     https://url.com
-– ser du en enkel mappeliste?
-Nei → AutoIndex er ikke aktiv. Sjekk .htaccess og at ingen overordnet .htaccess har Options -Indexes eller Require all denied.
-Ja → AutoIndex er på; da er det som regel:
-Feil plassering av explorer.html (ligger ikke i mappen du tester).
+– Do you see a simple directory list?
+No → AutoIndex is not active. Check .htaccess and make sure no parent .htaccess has Options -Indexes or Require all denied.  
+Yes → AutoIndex is active; then usually:
+Incorrect placement of explorer.html (not located in the folder you are testing).
 
-En svært tilpasset AutoIndex-mal som parseren ikke gjenkjenner. Da kan du:
-Oppdatere parseAutoIndex() med selektorer som passer ditt tema.
-Eller bruke PHP-varianten (under).
+A heavily customized AutoIndex template that the parser doesn’t recognize. Then you can:
+Update parseAutoIndex() with selectors that match your theme.  
+Or use the PHP variant (below).
 
-## Symptom: 403/401 på noen filer
-Filrettigheter og/eller hotlink-/IP-begrensninger. Slå av hotlink-beskyttelse eller whitelist domenet.
+## Symptom: 403/401 on some files
+File permissions and/or hotlink/IP restrictions. Disable hotlink protection or whitelist your domain.
 
-## Symptom: Åpner ikke på https://
-Vent på SSL-sertifikat for subdomenet, eller test midlertidig via http:// uten tvungen redirect.
-PHP-variant (hvis AutoIndex er av)
-Dersom du ikke kan bruke Options +Indexes, finnes en alternativ én-fil PHP-lister som leser filsystemet direkte (og ikke er avhengig av AutoIndex-HTML). Gi beskjed, så følger en index.php-versjon med samme UI/oppførsel.
+## Symptom: Doesn’t open via https://
+Wait for the SSL certificate for the subdomain, or test temporarily via http:// without forced redirect.
 
-# Kjente begrensninger
-Ekstremt store mapper (tusenvis av filer) kan gjøre parsing treg i nettleser.
+# PHP variant (if AutoIndex is disabled)
+If you cannot use Options +Indexes, there is an alternative single-file PHP lister that reads the filesystem directly (and doesn’t depend on AutoIndex HTML). Let me know, and an index.php version with the same UI/behavior will follow.
 
-Avhengig av at serveren leverer en «vanlig» AutoIndex-side. Sterkt tilpassede tema kan kreve små justeringer i parseAutoIndex().
+# Known limitations
+Extremely large folders (thousands of files) can make parsing slow in the browser.
 
-# Eksempel-URLer:
-Utforsker: https://url.com/explorer.html
-Mappeliste (server): https://url.com/
+Depends on the server providing a “standard” AutoIndex page. Strongly customized themes may require small adjustments in parseAutoIndex().
 
-# Informasjon som må med i filen som ligger ved som heter .htaccess:
-## Legg i mappen du vil liste (her: /foldername/.htaccess):
+# Example URLs:
+Explorer: https://url.com/explorer.html  
+Directory list (server): https://url.com/
+
+# Information that must be included in the accompanying file named .htaccess:
+## Place in the folder you want to list (here: /foldername/.htaccess):
 
     Options +Indexes
     Require all granted
 
     <IfModule mod_rewrite.c>
     RewriteEngine On
-    # (valgfritt) sett base hvis noe oppfører seg rart på webhotell
+    # (optional) set base if something behaves oddly on web hosting
     # RewriteBase /bank/
 
-    # Kun hvis det ikke finnes en faktisk fil eller mappe med samme navn
+    # Only if there’s no actual file or folder with the same name
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
 
     # /bank/explorer  ->  /bank/explorer.html
     RewriteRule ^explorer/?$ explorer.html [L,NC]
 
-    # (om du vil beholde fra i sted)
+    # (keep from before if needed)
     RewriteRule ^update/?$   update.html           [L,NC]
     RewriteRule ^refresh/?$  manifest.php?write=1  [L,NC]
     </IfModule>
