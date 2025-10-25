@@ -34,7 +34,7 @@ Hvis du må beholde en index.html i rotmappen:
 Opprett en undermappe, f.eks. /_explorer/
 
 ## Legg explorer.html der:
-    /bank/_explorer/explorer.html
+    /folder_name/_explorer/explorer.html
 ### Åpne:
     https://url.com/_explorer/explorer.html
 
